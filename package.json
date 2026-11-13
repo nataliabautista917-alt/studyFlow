@@ -1,0 +1,16 @@
+{
+  "name": "studyflow-gestor-tareas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "StudyFlow: gestor de tareas academicas construido con un equipo de agentes de OpenCode.",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test",
+    "test:watch": "node --test --watch",
+    "check": "node --check src/domain.js && node --check src/storage.js && node --check src/app.js && node --check scripts/serve.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

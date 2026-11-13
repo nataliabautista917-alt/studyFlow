@@ -1,0 +1,8 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // El arquitecto coordina al equipo y puede lanzar a developer y tester.
+  "default_agent": "architect",
+  "experimental": {
+    "subagent_depth": 2
+  }
+}

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="StudyFlow: gestor de tareas academicas con metricas, filtros y persistencia local.">
+  <title>StudyFlow — Gestor de tareas académicas</title>
+  <link rel="icon" href="data:,">
+  <!--
+    Arranque de tema sin destello (RF-10): se ejecuta antes de que el navegador
+    parsee el CSS para que el primer pintado ya use el tema correcto. Un valor
+    inválido en `studyflow.theme` se ignora y se usa `prefers-color-scheme`.
+  -->
+  <script>
+    (function () {
+      var theme = "light";
+      try {
+        var stored = window.localStorage.getItem("studyflow.theme");
+        if (stored === "dark" || stored === "light") {
+          theme = stored;
+        } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          theme = "dark";
+        }
+      } catch (error) {
+        theme = "light";
+      }
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a id="skip-link" class="skip-link" href="#main">Saltar al contenido</a>
+
+  <header class="app-header">
+    <div class="app-header__brand">
+      <h1 id="app-title" class="app-header__title">StudyFlow</h1>
+      <p class="app-header__subtitle">Tu carga académica de un vistazo</p>
+    </div>
+    <div class="app-header__actions">
+      <button
+        id="theme-toggle"
+        class="btn btn--secondary"
+        type="button"
+        aria-pressed="false"
+        aria-label="Cambiar a tema oscuro"
+      >
+        <span id="theme-icon" class="btn__icon" aria-hidden="true">🌙</span>
+        <span class="btn__label">Tema</span>
+      </button>
+      <button id="btn-new-task" class="btn btn--primary" type="button">
+        <span class="btn__icon" aria-hidden="true">+</span>
+        <span class="btn__label">Nueva tarea</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main" class="app-main">
+    <section id="dashboard" class="dashboard" aria-labelledby="dashboard-title">
+      <h2 id="dashboard-title" class="section-title">Resumen</h2>
+      <dl class="stats">
+        <div class="stat">
+          <dt id="stat-total-label" class="stat__label">Total</dt>
+          <dd id="stat-total" class="stat__value" aria-labelledby="stat-total-label">0</dd>
+        </div>
+        <div class="stat">
+          <dt id="stat-pending-label" class="stat__label">Pendientes</dt>
+          <dd id="stat-pending" class="stat__value" aria-labelledby="stat-pending-label">0</dd>
+        </div>
+        <div class="stat">
+          <dt id="stat-in-progress-label" class="stat__label">En progreso</dt>
+          <dd id="stat-in-progress" class="stat__value" aria-labelledby="stat-in-progress-label">0</dd>
+        </div>
+        <div class="stat">
+          <dt id="stat-completed-label" class="stat__label">Completadas</dt>
+          <dd id="stat-completed" class="stat__value" aria-labelledby="stat-completed-label">0</dd>
+        </div>
+        <div class="stat">
+          <dt id="stat-overdue-label" class="stat__label">Vencidas</dt>
+          <dd id="stat-overdue" class="stat__value" aria-labelledby="stat-overdue-label">0</dd>
+        </div>
+        <div class="stat">
+          <dt id="stat-upcoming-label" class="stat__label">Próximas 7 días</dt>
+          <dd id="stat-upcoming" class="stat__value" aria-labelledby="stat-upcoming-label">0</dd>
+        </div>
+        <div class="stat stat--progress">
+          <dt id="stat-progress-label" class="stat__label">Avance</dt>
+          <dd class="stat__value stat__value--progress">
+            <progress id="progress-bar" class="stat__progress" max="100" value="0" aria-labelledby="stat-progress-label"></progress>
+            <span id="stat-progress" aria-labelledby="stat-progress-label">0 %</span>
+          </dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="tasks" aria-labelledby="tasks-title">
+      <div class="tasks__head">
+        <h2 id="tasks-title" class="section-title">Tareas</h2>
+        <p id="task-count" class="tasks__count" aria-live="polite">0 tareas</p>
+      </div>
+
+      <form id="filters-form" class="filters" role="search" aria-label="Buscar y filtrar tareas">
+        <div class="filters__field filters__field--search">
+          <label for="search-input">Buscar</label>
+          <input
+            id="search-input"
+            name="query"
+            type="search"
+            maxlength="80"
+            autocomplete="off"
+            placeholder="Título, curso o notas"
+            aria-describedby="search-help"
+          >
+          <p id="search-help" class="field__help">Busca por título, curso o notas.</p>
+        </div>
+
+        <div class="filters__field">
+          <label for="filter-status">Estado</label>
+          <select id="filter-status" name="status">
+            <option value="">Todos</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="en_progreso">En progreso</option>
+            <option value="completada">Completada</option>
+          </select>
+        </div>
+
+        <div class="filters__field">
+          <label for="filter-course">Curso</label>
+          <select id="filter-course" name="course">
+            <option value="">Todos los cursos</option>
+          </select>
+        </div>
+
+        <div class="filters__field">
+          <label for="filter-priority">Prioridad</label>
+          <select id="filter-priority" name="priority">
+            <option value="">Todas</option>
+            <option value="alta">Alta</option>
+            <option value="media">Media</option>
+            <option value="baja">Baja</option>
+          </select>
+        </div>
+
+        <div class="filters__field">
+          <label for="filter-type">Tipo</label>
+          <select id="filter-type" name="type">
+            <option value="">Todos</option>
+            <option value="tarea">Tarea</option>
+            <option value="examen">Examen</option>
+            <option value="proyecto">Proyecto</option>
+            <option value="lectura">Lectura</option>
+          </select>
+        </div>
+
+        <div class="filters__field">
+          <label for="sort-by">Ordenar por</label>
+          <select id="sort-by" name="sortBy">
+            <option value="dueDate">Fecha de entrega</option>
+            <option value="priority">Prioridad</option>
+            <option value="createdAt">Más recientes</option>
+          </select>
+        </div>
+
+        <div class="filters__actions">
+          <button id="btn-clear-filters" class="btn btn--secondary" type="button" disabled>Limpiar filtros</button>
+        </div>
+      </form>
+
+      <ul id="task-list" class="task-list"></ul>
+
+      <section id="empty-state" class="empty-state" hidden aria-labelledby="empty-title">
+        <h3 id="empty-title" class="empty-state__title">Tu panel está vacío</h3>
+        <p id="empty-message" class="empty-state__message">Crea tu primera tarea para empezar a organizar tu semana.</p>
+        <button id="btn-empty-action" class="btn btn--primary" type="button" data-empty-action="new">Crear tarea</button>
+      </section>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="app-footer__actions">
+      <button id="btn-export" class="btn btn--secondary" type="button">Exportar JSON</button>
+      <button id="btn-import" class="btn btn--secondary" type="button" aria-describedby="import-help">Importar JSON</button>
+      <p id="import-help" class="field__help">Reemplaza tus tareas con las del archivo (máximo 2 MB).</p>
+      <input
+        id="import-file"
+        class="visually-hidden"
+        type="file"
+        accept="application/json,.json"
+        hidden
+        aria-label="Archivo JSON para importar"
+      >
+      <button id="btn-reset" class="btn btn--danger btn--tertiary" type="button">Restablecer datos</button>
+    </div>
+    <div class="app-footer__status">
+      <p id="storage-note" class="app-footer__note">0 tareas · sin guardar</p>
+      <div id="storage-warning" class="app-footer__warning" role="status" hidden>No se están guardando los cambios. Exporta tus datos.</div>
+    </div>
+  </footer>
+
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite" aria-atomic="false"></div>
+
+  <dialog id="task-dialog" class="dialog" aria-labelledby="task-dialog-title">
+    <h2 id="task-dialog-title" class="dialog__title">Nueva tarea</h2>
+    <form id="task-form" class="dialog__form" novalidate>
+      <input id="task-id" name="id" type="hidden">
+
+      <div class="field">
+        <label for="task-title">Título</label>
+        <input
+          id="task-title"
+          name="title"
+          type="text"
+          required
+          maxlength="120"
+          autocomplete="off"
+          autofocus
+          aria-describedby="task-title-error"
+        >
+        <p id="task-title-error" class="field__error"></p>
+      </div>
+
+      <div class="field">
+        <label for="task-course">Curso</label>
+        <input
+          id="task-course"
+          name="course"
+          type="text"
+          required
+          maxlength="60"
+          autocomplete="off"
+          list="course-options"
+          aria-describedby="task-course-error"
+        >
+        <p id="task-course-error" class="field__error"></p>
+        <datalist id="course-options"></datalist>
+      </div>
+
+      <div class="field">
+        <label for="task-type">Tipo</label>
+        <select id="task-type" name="type">
+          <option value="tarea" selected>Tarea</option>
+          <option value="examen">Examen</option>
+          <option value="proyecto">Proyecto</option>
+          <option value="lectura">Lectura</option>
+        </select>
+        <p id="task-type-error" class="field__error"></p>
+      </div>
+
+      <div class="field">
+        <label for="task-due-date">Fecha de entrega</label>
+        <input id="task-due-date" name="dueDate" type="date" aria-describedby="task-due-date-help task-due-date-error">
+        <p id="task-due-date-help" class="field__help">Déjala vacía si no tiene fecha.</p>
+        <p id="task-due-date-error" class="field__error"></p>
+      </div>
+
+      <div class="field">
+        <label for="task-priority">Prioridad</label>
+        <select id="task-priority" name="priority">
+          <option value="alta">Alta</option>
+          <option value="media" selected>Media</option>
+          <option value="baja">Baja</option>
+        </select>
+        <p id="task-priority-error" class="field__error"></p>
+      </div>
+
+      <div class="field">
+        <label for="task-status">Estado</label>
+        <select id="task-status" name="status">
+          <option value="pendiente" selected>Pendiente</option>
+          <option value="en_progreso">En progreso</option>
+          <option value="completada">Completada</option>
+        </select>
+        <p id="task-status-error" class="field__error"></p>
+      </div>
+
+      <div class="field">
+        <label for="task-hours">Horas estimadas</label>
+        <input
+          id="task-hours"
+          name="estimatedHours"
+          type="number"
+          min="0"
+          max="100"
+          step="0.5"
+          inputmode="decimal"
+          aria-describedby="task-hours-help task-hours-error"
+        >
+        <p id="task-hours-help" class="field__help">0–100 h.</p>
+        <p id="task-hours-error" class="field__error"></p>
+      </div>
+
+      <div class="field field--full">
+        <label for="task-notes">Notas</label>
+        <textarea id="task-notes" name="notes" rows="3" maxlength="500" aria-describedby="task-notes-help task-notes-error"></textarea>
+        <p id="task-notes-help" class="field__help">Máximo 500 caracteres.</p>
+        <p id="task-notes-error" class="field__error"></p>
+      </div>
+
+      <div id="form-errors" class="dialog__errors" aria-live="polite"></div>
+
+      <div class="dialog__actions">
+        <button id="btn-cancel-task" class="btn btn--secondary" type="button">Cancelar</button>
+        <button id="btn-save-task" class="btn btn--primary" type="submit">Guardar tarea</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="dialog dialog--confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+    <h2 id="confirm-title" class="dialog__title">Confirmar acción</h2>
+    <p id="confirm-message" class="dialog__message"></p>
+    <div class="dialog__actions">
+      <button id="btn-cancel-confirm" class="btn btn--secondary" type="button">Cancelar</button>
+      <button id="btn-confirm" class="btn btn--danger" type="button">Confirmar</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>
